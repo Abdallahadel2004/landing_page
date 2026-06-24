@@ -11,6 +11,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600&family=Great+Vibes&display=swap"
         rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
 
     <style>
         :root {
@@ -41,6 +42,8 @@
             background: var(--bg);
             color: var(--fg);
             scroll-behavior: smooth;
+            overflow-x: hidden;
+            width: 100%;
         }
 
         body {
@@ -363,14 +366,14 @@
             margin-bottom: 20px;
         }
 
-        .center-brand .row {
+        .center-brand .brand-row {
             display: flex;
             align-items: baseline;
             gap: 0.1em;
             color: var(--fg);
         }
 
-        .center-brand .row span {
+        .center-brand .brand-row span {
             font-family: var(--font-display);
             font-size: 56px;
             line-height: 0.9;
@@ -617,7 +620,7 @@
 
         .stay-title .l1 {
             font-family: var(--font-display);
-            font-size: clamp(80px, 14vw, 240px);
+            font-size: clamp(45px, 14vw, 240px);
             line-height: 0.85;
             letter-spacing: -0.04em;
             color: var(--fg);
@@ -629,7 +632,7 @@
             line-height: 0.85;
             letter-spacing: -0.05em;
             color: var(--fg);
-            font-size: clamp(40px, 7vw, 100px);
+            font-size: clamp(28px, 7vw, 100px);
             margin-top: 20px;
         }
 
@@ -884,11 +887,12 @@
             }
 
             .cta-br {
-                right: 50%;
-                bottom: 40px;
-                transform: translateX(50%);
-                align-items: center;
-                width: 90vw;
+                left: 50% !important;
+                right: auto !important;
+                bottom: 40px !important;
+                transform: translateX(-50%) !important;
+                align-items: center !important;
+                width: 90vw !important;
             }
 
             .cta-br p {
@@ -942,6 +946,13 @@
                 flex-wrap: wrap;
                 gap: 20px;
             }
+
+            .orbit-label {
+                left: 50% !important;
+                top: 105% !important;
+                text-align: center;
+                width: 280px !important;
+            }
         }
     </style>
 </head>
@@ -989,7 +1000,7 @@
                 <div class="center-brand">
                     <div class="stack overlay-fade" id="ov-center">
                         <img src="media/logo.png" alt="Mashhoor Logo" class="logo-img" />
-                        <div class="row">
+                        <div class="brand-row">
                             <span class="serif">Signature&nbsp;</span>
                             <span class="serif italic">Menu</span>
                         </div>
@@ -1020,35 +1031,52 @@
         <img class="stay-bg"
             src="https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=2000&auto=format&fit=crop" alt=""
             aria-hidden="true" />
-        <div class="stay-wrap">
-            <div class="stay-title blur-up" data-reveal>
-                <div class="l1">Taste <span class="italic">the</span></div>
-                <div class="l2">Experience</div>
-            </div>
-            <div class="stay-form blur-up" data-reveal data-delay="300">
-                <p>Join the Mashhoor Inner Circle for exclusive early access to seasonal boxes and branch openings
-                    across Egypt.</p>
-                <form class="sub-form" id="newsletter-form"><input type="email"
-                        placeholder="Enter your email address" aria-label="Email subscription" required /><button
-                        type="submit">Subscribe →</button></form>
-                <div id="newsletter-success" style="display: none; opacity: 0; color: var(--accent); font-size: 20px; font-weight: 500; margin-top: 24px; transition: opacity 0.5s ease, transform 0.5s ease; transform: translateY(10px); align-items: center; gap: 8px;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    Subscribed successfully!
+        <div class="container-lg stay-wrap">
+            <div class="row align-items-center gy-5">
+                <div class="col-12 col-lg-7 stay-title blur-up" data-reveal>
+                    <div class="l1">Taste <span class="italic">the</span></div>
+                    <div class="l2">Experience</div>
+                </div>
+                <div class="col-12 col-lg-5 stay-form blur-up" data-reveal data-delay="300">
+                    <p class="fs-5 text-muted mb-4">Join the Mashhoor Inner Circle for exclusive early access to seasonal boxes and branch openings across Egypt.</p>
+                    <form class="sub-form d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-3 border-0 pb-0" id="newsletter-form">
+                        <input type="email" class="form-control bg-transparent text-center text-sm-start text-dark border-0 border-bottom rounded-0 border-secondary px-0 py-2 fs-5 w-100"
+                            placeholder="Enter your email address" aria-label="Email subscription" required />
+                        <button type="submit" class="btn text-danger text-uppercase fw-bold tracking-wider py-2">Subscribe →</button>
+                    </form>
+                    <div id="newsletter-success" style="display: none; opacity: 0; color: var(--accent); font-size: 20px; font-weight: 500; margin-top: 24px; transition: opacity 0.5s ease, transform 0.5s ease; transform: translateY(10px); align-items: center; gap: 8px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Subscribed successfully!
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
     <footer class="footer">
-        <div class="footer-wrap">
-
-            <div class="footer-bottom blur-up" data-reveal data-delay="300">
-                <div class="footer-meta">© 2026 MASHHOOR CRISPY CHICKEN (مشهور)</div>
-                <div class="footer-social"><a href="https://www.instagram.com/mashhoor.egypt/" target="_blank" rel="noopener noreferrer">Instagram</a><span class="dot">·</span><a
-                        href="https://www.facebook.com/p/Mashhoor-Egypt-61576333537631/" target="_blank" rel="noopener noreferrer">Facebook</a><span class="dot">·</span><a href="https://www.tiktok.com/@mashhoor.egypt" target="_blank" rel="noopener noreferrer">TikTok</a><span class="dot">·</span><a href="tel:17555" style="color: var(--accent); font-weight: 700; display: inline-flex; align-items: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Hotline 17555</a></div>
-                <div class="footer-meta">EG · ARABIC / ENGLISH</div>
+        <div class="container-lg py-5">
+            <div class="row align-items-center justify-content-between gy-4 blur-up text-center text-md-start" data-reveal data-delay="300">
+                <div class="col-12 col-md-4 footer-meta order-2 order-md-1">
+                    © 2026 MASHHOOR CRISPY CHICKEN (مشهور)
+                </div>
+                <div class="col-12 col-md-5 footer-social d-flex flex-wrap justify-content-center align-items-center gap-3 order-1 order-md-2">
+                    <a href="https://www.instagram.com/mashhoor.egypt/" target="_blank" rel="noopener noreferrer">Instagram</a>
+                    <span class="text-secondary opacity-50">•</span>
+                    <a href="https://www.facebook.com/p/Mashhoor-Egypt-61576333537631/" target="_blank" rel="noopener noreferrer">Facebook</a>
+                    <span class="text-secondary opacity-50">•</span>
+                    <a href="https://www.tiktok.com/@mashhoor.egypt" target="_blank" rel="noopener noreferrer">TikTok</a>
+                    <span class="text-secondary opacity-50">•</span>
+                    <a href="tel:17555" style="color: var(--accent); font-weight: 700; display: inline-flex; align-items: center;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>Hotline 17555
+                    </a>
+                </div>
+                <div class="col-12 col-md-3 footer-meta text-md-end order-3 order-md-3">
+                    EG · ARABIC / ENGLISH
+                </div>
             </div>
         </div>
     </footer>
@@ -1148,11 +1176,13 @@
                     el.style.filter = "blur(" + blurVal + "px)";
                 });
 
+                var scale = (rotationEl.parentElement.clientWidth || BASE) / BASE;
                 var stops = [0.15, 0.25, 0.85, 0.95, 1], itemSize = track(p, stops, [100, 400, 400, 100, 100]), rx = track(p, stops, [350, TARGET_RADIUS, TARGET_RADIUS, 350, 350]), ry = track(p, stops, [150, TARGET_RADIUS, TARGET_RADIUS, 150, 150]), rot = track(p, stops, [-12, 0, 0, -12, -12]), focus = track(p, stops, [0, 1, 1, 0, 0]);
-                rotationEl.style.transform = "rotate(" + rot + "deg) translateX(" + track(p, stops, [0, -(TARGET_RADIUS + 250), -(TARGET_RADIUS + 250), 0, 0]) + "px)";
+                
+                var transX = track(p, stops, [0, -(TARGET_RADIUS + 250), -(TARGET_RADIUS + 250), 0, 0]) * scale;
+                rotationEl.style.transform = "rotate(" + rot + "deg) translateX(" + transX + "px)";
 
                 orbitProgress += (p > 0.15 && p < 0.85) ? (p - prevScroll) * 200 : advance * 3.0; prevScroll = p;
-                var scale = (rotationEl.parentElement.clientWidth || BASE) / BASE;
                 items.forEach(function (it) {
                     var pos = (((orbitProgress + it.offset) % 100) + 100) % 100, dist = Math.abs(pos - FOCAL); if (dist > 50) dist = 100 - dist;
                     var tScale = (dist < 20) ? (0.4 + ((Math.cos((dist / 20) * Math.PI) + 1) / 2) * 0.6) : 0.4, itemScale = 1 - focus * (1 - tScale);
@@ -1162,7 +1192,11 @@
                     it.wrap.style.zIndex = Math.round(itemScale * 100); it.wrap.style.opacity = track(p, [0.1, 0.15], [0, 1]);
                     it.counter.style.transform = "rotate(" + (-rot) + "deg)";
                     it.label.style.opacity = focus * track(dist, [0, 5, 10], [1, 1, 0]);
-                    it.label.style.transform = "translateY(-50%) translateX(" + track(dist, [0, 10], [0, 20]) + "px)";
+                    
+                    var isMobile = window.innerWidth <= 768;
+                    it.label.style.transform = isMobile 
+                        ? "translateX(-50%) translateY(" + track(dist, [0, 10], [0, 10]) + "px)" 
+                        : "translateY(-50%) translateX(" + track(dist, [0, 10], [0, 20]) + "px)";
                 });
                 requestAnimationFrame(frame);
             }
@@ -1192,6 +1226,7 @@
             }
         })();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
 
 </html>
