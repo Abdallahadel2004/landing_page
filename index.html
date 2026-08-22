@@ -11,9 +11,9 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@300;400;500;600&family=Great+Vibes&display=swap"
         rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
 
     <style>
+        /* ===== DESIGN TOKENS ===== */
         :root {
             --bg: #ffffff;
             --surface: #fff;
@@ -27,8 +27,29 @@
 
             --font-display: 'Instrument Serif', serif;
             --font-body: 'Manrope', sans-serif;
+
+            /* Responsive spacing tokens */
+            --space-xs: clamp(0.5rem, 1vw, 0.75rem);
+            --space-sm: clamp(0.75rem, 2vw, 1.25rem);
+            --space-md: clamp(1.25rem, 3vw, 2.5rem);
+            --space-lg: clamp(2rem, 5vw, 5rem);
+            --space-xl: clamp(3rem, 8vw, 10rem);
+
+            /* Responsive padding for page gutters */
+            --gutter: clamp(1.25rem, 5vw, 5rem);
+
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-right: env(safe-area-inset-right, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-left: env(safe-area-inset-left, 0px);
+
+            /* Height of the bottom menu rail in phone/reduced mode. The reveal
+               panel, the CTA offset and the static hero's bottom padding each
+               carried their own copy of this number, so they drifted apart. */
+            --rail-h: min(38vh, 22rem);
         }
 
+        /* ===== RESET ===== */
         *,
         *::before,
         *::after {
@@ -42,17 +63,31 @@
             background: var(--bg);
             color: var(--fg);
             scroll-behavior: smooth;
-            overflow-x: hidden;
+            /* clip, not hidden: overflow-x:hidden makes html/body scroll containers,
+               which silently disables the .sticky hero — the stage is 560vh, so the
+               hero scrolled away and left four viewport-heights of blank white.
+               overflow-x:clip clips the same way without creating a scrollport. */
+            overflow-x: clip;
             width: 100%;
+            /* 100vw includes the classic scrollbar's width, which itself overflows. */
+            max-width: 100%;
         }
 
         body {
             font-family: var(--font-body);
             -webkit-font-smoothing: antialiased;
-            overflow-x: hidden;
+            overflow-x: clip;
         }
 
-        /* Typography Polish */
+        /* ===== GLOBAL RESPONSIVE IMAGES ===== */
+        img,
+        video,
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* ===== Typography Polish ===== */
         .serif {
             font-family: var(--font-display);
             letter-spacing: -0.01em;
@@ -101,7 +136,7 @@
         .stage {
             position: relative;
             width: 100%;
-            height: 650vh;
+            height: 560vh;
             background: var(--bg);
         }
 
@@ -120,6 +155,7 @@
             inset: 0;
             width: 100%;
             height: 100%;
+            max-width: none;
             object-fit: cover;
             z-index: 0;
             filter: brightness(0.7);
@@ -132,21 +168,104 @@
             inset: 0;
             width: 100%;
             height: 100%;
+            max-width: none;
             z-index: 25;
             pointer-events: auto;
             will-change: transform;
+        }
+
+        .static-hero {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(5rem, 12vh, 8rem) var(--gutter) clamp(10rem, 22vh, 14rem);
+            background: var(--bg);
+            pointer-events: none;
+        }
+
+        .static-hero img {
+            width: min(78vw, 34rem);
+            height: min(66vh, 38rem);
+            object-fit: contain;
+            object-position: center;
+            filter: drop-shadow(0 1.5rem 2rem rgba(0, 0, 0, 0.13));
+        }
+
+        html[data-mode="phone"] .stage {
+            height: 135vh;
+        }
+
+        html[data-mode="phone"] .static-hero,
+        html[data-mode="reduced"] .static-hero {
+            display: flex;
+        }
+
+        html[data-mode="desktop"] .static-hero {
+            display: none;
+        }
+
+        html[data-mode="phone"] #three-canvas,
+        html[data-mode="reduced"] #three-canvas,
+        html[data-mode="phone"] #bg-video,
+        html[data-mode="reduced"] #bg-video {
+            display: none !important;
+        }
+
+        /* Phone gets the same 3D bucket as desktop, in the reduced-cost build (see
+           LOW in crispy-chicken-3d.js). data-hero3d is only set once init actually
+           returned a renderer, so a phone without WebGL keeps the static photo
+           instead of showing an empty box. */
+        html[data-mode="phone"][data-hero3d="on"] #three-canvas {
+            display: block !important;
+            /* The canvas is inset:0 on .sticky by default, which would run it the full
+               height of the viewport: under the menu rail and behind the CTA. Confine
+               it to exactly the band the photo occupied, from the same tokens, so the
+               two cannot drift apart. */
+            top: var(--hero-reserve-top);
+            /* A canvas is a replaced element, so height:auto resolves to its intrinsic
+               size -- the width/height attributes, i.e. the drawing buffer -- which
+               leaves top/height/bottom over-constrained and makes the browser drop
+               `bottom`. The canvas then ran the full viewport height. Size it outright. */
+            bottom: auto;
+            height: calc(100% - var(--hero-reserve-top) - var(--hero-reserve-bottom));
+            /* Above .static-hero (2), below .cta-br (10) and .reveal (20). At the
+               default 25 it painted over both. */
+            z-index: 3;
+            /* Nothing in the scene reads input, and a full-width canvas that accepts
+               touch is a scroll trap on a phone. */
+            pointer-events: none;
+        }
+
+        html[data-mode="phone"][data-hero3d="on"] .static-hero img {
+            display: none;
+        }
+
+        html[data-mode="reduced"] .stage {
+            height: 155vh;
+        }
+
+        html[data-mode="phone"] .hero-logo,
+        html[data-mode="reduced"] .hero-logo,
+        html[data-mode="phone"] .hero-header,
+        html[data-mode="reduced"] .hero-header,
+        html[data-mode="phone"] .scroll-hint,
+        html[data-mode="reduced"] .scroll-hint {
+            transition: none;
         }
 
         #bg-video.loaded {
             opacity: 1;
         }
 
-        /* logo top-left */
+        /* ===== logo top-left ===== */
         .hero-logo {
             position: absolute;
             z-index: 10;
-            top: 80px;
-            left: 80px;
+            top: calc(var(--gutter) + var(--safe-top));
+            left: calc(var(--gutter) + var(--safe-left));
             display: flex;
             flex-direction: column;
             align-items: flex-start;
@@ -156,26 +275,26 @@
         }
 
         .hero-logo-img {
-            height: clamp(80px, 12vw, 140px);
+            height: clamp(3.5rem, 10vw, 8.75rem);
             width: auto;
             display: block;
         }
 
         .hero-logo .collection {
             font-weight: 500;
-            font-size: 14px;
+            font-size: clamp(0.625rem, 1.2vw, 0.875rem);
             color: var(--fg);
             letter-spacing: 0.3em;
             text-transform: uppercase;
-            margin-top: 16px;
+            margin-top: var(--space-sm);
             opacity: 0.8;
         }
 
-        /* scroll hint */
+        /* ===== scroll hint ===== */
         .scroll-hint {
             position: absolute;
             z-index: 10;
-            bottom: 40px;
+            bottom: clamp(1.25rem, 4vw, 2.5rem);
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -189,10 +308,10 @@
 
         .scroll-hint .well {
             position: relative;
-            width: 24px;
-            height: 40px;
+            width: 1.5rem;
+            height: 2.5rem;
             border: 2px solid var(--border);
-            border-radius: 20px;
+            border-radius: 1.25rem;
         }
 
         @keyframes scrollArrow {
@@ -215,14 +334,14 @@
             position: absolute;
             left: 50%;
             top: 0;
-            width: 4px;
-            height: 4px;
+            width: 0.25rem;
+            height: 0.25rem;
             background: var(--fg);
             border-radius: 50%;
             animation: scrollArrow 2s infinite;
         }
 
-        /* clip reveal */
+        /* ===== clip reveal ===== */
         .reveal {
             position: absolute;
             z-index: 20;
@@ -237,6 +356,155 @@
             transform: rotate(-12deg);
             clip-path: ellipse(0% 0% at 50% 50%);
             will-change: clip-path;
+        }
+
+        html[data-mode="phone"] .reveal,
+        html[data-mode="reduced"] .reveal {
+            left: 0;
+            top: auto;
+            bottom: 0;
+            width: 100%;
+            height: var(--rail-h);
+            transform: none;
+            clip-path: none !important;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+        }
+
+        html[data-mode="phone"] .reveal-inner,
+        html[data-mode="reduced"] .reveal-inner {
+            width: 100%;
+            height: 100%;
+            transform: none;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding: 1.15rem 0 1.35rem;
+        }
+
+        html[data-mode="phone"] .orbit-frame,
+        html[data-mode="reduced"] .orbit-frame {
+            width: 100%;
+            height: 100%;
+            aspect-ratio: auto;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        html[data-mode="phone"] .orbit-frame::before,
+        html[data-mode="reduced"] .orbit-frame::before {
+            content: "Signature menu";
+            display: block;
+            padding: 0 var(--gutter) 0.8rem;
+            font-family: var(--font-display);
+            font-size: clamp(1.35rem, 5vw, 2rem);
+            color: var(--fg);
+        }
+
+        html[data-mode="phone"] .orbit-rotation,
+        html[data-mode="reduced"] .orbit-rotation {
+            position: relative;
+            inset: auto;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            width: 100%;
+            max-width: 100%;
+            /* Fill the space the heading leaves. The old calc(100% - 2.25rem) assumed a
+               fixed heading height, so on wider phones the rotation ran past the rail. */
+            height: auto;
+            flex: 1 1 auto;
+            min-height: 0;
+            padding: 0 var(--gutter);
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            transform: none !important;
+        }
+
+        html[data-mode="phone"] .orbit-rotation::-webkit-scrollbar,
+        html[data-mode="reduced"] .orbit-rotation::-webkit-scrollbar {
+            display: none;
+        }
+
+        html[data-mode="phone"] .orbit-item,
+        html[data-mode="reduced"] .orbit-item {
+            position: relative;
+            left: auto;
+            top: auto;
+            height: min(clamp(7.5rem, 27vw, 11rem), 100%) !important;
+            width: auto !important;
+            aspect-ratio: 1 / 1;
+            flex: 0 0 auto;
+            opacity: 1 !important;
+            transform: none !important;
+            scroll-snap-align: start;
+        }
+
+        html[data-mode="phone"] .orbit-item .img-wrap,
+        html[data-mode="reduced"] .orbit-item .img-wrap {
+            padding: 7%;
+            box-shadow: 0 0.75rem 1.75rem rgba(0, 0, 0, 0.12);
+        }
+
+        html[data-mode="phone"] .orbit-label,
+        html[data-mode="reduced"] .orbit-label {
+            display: none !important;
+        }
+
+        html[data-mode="phone"] .center-brand .logo-img,
+        html[data-mode="reduced"] .center-brand .logo-img {
+            display: none;
+        }
+
+        html[data-mode="reduced"] .center-brand,
+        html[data-mode="reduced"] .info-tr,
+        html[data-mode="reduced"] .info-bl,
+        html[data-mode="reduced"] #ov-cta-p {
+            display: none;
+        }
+
+        html[data-mode="reduced"] .cta-br {
+            left: 50%;
+            right: auto;
+            bottom: calc(var(--rail-h) + 1rem + var(--safe-bottom));
+            transform: translateX(-50%);
+            align-items: center;
+            width: min(90vw, 28rem);
+        }
+
+        html[data-mode="reduced"] .cta-row {
+            justify-content: center;
+        }
+
+        /* Reduced mode reuses the phone composition — a static hero sitting above a
+           fixed menu rail — but the phone vertical budget lives in
+           @media (max-width: 768px), so above that width .static-hero fell back to
+           its base padding: a 22vh bottom reserve against a 342px rail plus a 53px
+           CTA. The rail (z-index 20) then painted over the bottom ~144px of the
+           bucket photo and the CTA landed on top of it. Reserve the rail here too.
+           Gated to min-width 769px so the verified phone tiers keep their values. */
+        @media (min-width: 769px) {
+            html[data-mode="reduced"] {
+                /* The rail is the whole page on a phone, but only a menu strip at
+                   desktop widths, so it does not need 38vh there. */
+                --rail-h: min(32vh, 20rem);
+                --cta-h: 3.4rem;
+                --hero-gap: 1rem;
+            }
+
+            html[data-mode="reduced"] .static-hero {
+                padding-bottom: calc(var(--rail-h) + var(--cta-h) + var(--hero-gap) * 2 + var(--safe-bottom));
+            }
+
+            /* Fill the budgeted zone and let object-fit: contain choose the largest
+               rect that fits, rather than racing a separate 66vh height cap that
+               knows nothing about the rail. */
+            html[data-mode="reduced"] .static-hero img {
+                height: 100%;
+                min-height: 0;
+            }
         }
 
         .reveal-white {
@@ -255,11 +523,11 @@
             justify-content: center;
         }
 
-        /* orbit */
+        /* ===== orbit ===== */
         .orbit-frame {
             position: relative;
             width: 95vw;
-            max-width: 1400px;
+            max-width: 87.5rem;
             aspect-ratio: 1 / 1;
         }
 
@@ -283,7 +551,7 @@
             height: 100%;
             border-radius: 50%;
             overflow: hidden;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 1.875rem 5rem rgba(0, 0, 0, 0.15);
             border: 1px solid rgba(0, 0, 0, 0.03);
             transition: transform 0.6s cubic-bezier(0.2, 0, 0, 1);
             background: #fff;
@@ -309,7 +577,7 @@
             left: 110%;
             top: 50%;
             transform: translateY(-50%);
-            width: 340px;
+            width: clamp(12rem, 22vw, 21.25rem);
             color: var(--fg);
             pointer-events: none;
             opacity: 0;
@@ -318,20 +586,20 @@
 
         .orbit-label .lt {
             font-family: var(--font-display);
-            font-size: clamp(32px, 4vw, 48px);
+            font-size: clamp(1.5rem, 3.5vw, 3rem);
             line-height: 1;
             letter-spacing: -0.01em;
-            margin-bottom: 12px;
+            margin-bottom: 0.75rem;
         }
 
         .orbit-label .ld {
-            font-size: 15px;
+            font-size: clamp(0.8125rem, 1.2vw, 0.9375rem);
             line-height: 1.5;
             color: var(--muted);
             font-weight: 400;
         }
 
-        /* text overlays */
+        /* ===== text overlays ===== */
         .overlays {
             position: absolute;
             inset: 0;
@@ -350,6 +618,8 @@
             transform: translate(-50%, -50%);
             z-index: 50;
             pointer-events: none;
+            width: 90vw;
+            max-width: 40rem;
         }
 
         .center-brand .stack {
@@ -361,9 +631,9 @@
         }
 
         .center-brand .logo-img {
-            height: 140px;
+            height: clamp(4.5rem, 12vw, 8.75rem);
             width: auto;
-            margin-bottom: 20px;
+            margin-bottom: clamp(0.75rem, 2vw, 1.25rem);
         }
 
         .center-brand .brand-row {
@@ -375,23 +645,24 @@
 
         .center-brand .brand-row span {
             font-family: var(--font-display);
-            font-size: 56px;
+            font-size: clamp(1.75rem, 5vw, 3.5rem);
             line-height: 0.9;
         }
 
         .center-brand .collection {
-            font-size: 16px;
+            font-size: clamp(0.625rem, 1.3vw, 1rem);
             letter-spacing: 0.4em;
             color: var(--fg);
             text-transform: uppercase;
-            margin-top: 12px;
+            margin-top: clamp(0.5rem, 1vw, 0.75rem);
             font-weight: 600;
         }
 
+        /* ===== info overlays ===== */
         .info-tr {
             position: absolute;
-            top: 100px;
-            right: 100px;
+            top: clamp(2.5rem, 7vw, 6.25rem);
+            right: calc(clamp(2.5rem, 7vw, 6.25rem) + var(--safe-right));
             display: flex;
             flex-direction: column;
             align-items: flex-end;
@@ -400,14 +671,14 @@
         }
 
         .info-tr .num {
-            font-size: 44px;
+            font-size: clamp(1.5rem, 3.5vw, 2.75rem);
             line-height: 1;
-            margin-bottom: 8px;
+            margin-bottom: 0.5rem;
             color: var(--fg);
         }
 
         .info-tr .lbl {
-            font-size: 13px;
+            font-size: clamp(0.6875rem, 1vw, 0.8125rem);
             text-transform: uppercase;
             letter-spacing: 0.25em;
             color: var(--fg);
@@ -417,8 +688,8 @@
 
         .info-bl {
             position: absolute;
-            bottom: 80px;
-            left: 80px;
+            bottom: calc(var(--gutter) + var(--safe-bottom));
+            left: calc(var(--gutter) + var(--safe-left));
             display: flex;
             flex-direction: column;
             align-items: flex-start;
@@ -427,14 +698,14 @@
         }
 
         .info-bl .num {
-            font-size: 44px;
+            font-size: clamp(1.5rem, 3.5vw, 2.75rem);
             line-height: 1;
-            margin-bottom: 4px;
+            margin-bottom: 0.25rem;
             color: var(--fg);
         }
 
         .info-bl .lbl {
-            font-size: 13px;
+            font-size: clamp(0.6875rem, 1vw, 0.8125rem);
             text-transform: uppercase;
             letter-spacing: 0.25em;
             color: var(--fg);
@@ -443,8 +714,8 @@
 
         .cta-br {
             position: absolute;
-            bottom: 80px;
-            right: 80px;
+            bottom: calc(var(--gutter) + var(--safe-bottom));
+            right: calc(var(--gutter) + var(--safe-right));
             display: flex;
             flex-direction: column;
             align-items: flex-end;
@@ -453,13 +724,13 @@
         }
 
         .cta-br p {
-            font-size: 14px;
+            font-size: clamp(0.75rem, 1.1vw, 0.875rem);
             text-transform: uppercase;
             letter-spacing: 0.15em;
             color: var(--fg);
             line-height: 1.6;
-            margin: 0 0 32px;
-            width: 300px;
+            margin: 0 0 clamp(1rem, 2.5vw, 2rem);
+            width: clamp(14rem, 25vw, 18.75rem);
             text-align: right;
             opacity: 0.9;
         }
@@ -470,40 +741,48 @@
         }
 
         .btn-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             background: var(--fg);
             color: #fff;
-            border-radius: 40px;
-            padding: 18px 42px;
+            border-radius: 2.5rem;
+            padding: clamp(0.75rem, 1.5vw, 1.125rem) clamp(1.5rem, 3vw, 2.625rem);
             letter-spacing: 0.18em;
             text-transform: uppercase;
             font-weight: 600;
-            font-size: 12px;
+            font-size: clamp(0.625rem, 1vw, 0.75rem);
             z-index: 10;
             border: none;
             transition: all 0.4s cubic-bezier(0.2, 0, 0, 1);
             cursor: pointer;
+            white-space: nowrap;
+            min-height: 2.75rem;
         }
 
         .btn-pill:hover {
             background: var(--accent);
             transform: translateY(-4px);
-            box-shadow: 0 15px 30px rgba(227, 24, 55, 0.2);
+            box-shadow: 0 0.9375rem 1.875rem rgba(227, 24, 55, 0.2);
         }
 
         .btn-circle {
             background: var(--fg);
             color: #fff;
-            width: 52px;
-            height: 52px;
+            width: clamp(2.25rem, 4vw, 3.25rem);
+            height: clamp(2.25rem, 4vw, 3.25rem);
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: 50%;
-            margin-left: -12px;
+            margin-left: -0.75rem;
             z-index: 0;
             border: none;
             transition: all 0.4s cubic-bezier(0.2, 0, 0, 1);
             cursor: pointer;
+            flex-shrink: 0;
+            min-width: 2.75rem;
+            min-height: 2.75rem;
         }
 
         .btn-circle:hover {
@@ -511,13 +790,13 @@
             transform: translateX(6px);
         }
 
-        /* header */
+        /* ===== header ===== */
         .hero-header {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            padding: 40px 80px;
+            padding: calc(var(--gutter) + var(--safe-top)) calc(var(--gutter) + var(--safe-right)) var(--gutter) calc(var(--gutter) + var(--safe-left));
             display: flex;
             justify-content: flex-end;
             align-items: center;
@@ -529,7 +808,7 @@
         .brand-link {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 1rem;
             color: var(--fg);
             user-select: none;
             pointer-events: auto;
@@ -537,13 +816,13 @@
         }
 
         .header-logo {
-            height: 48px;
+            height: clamp(2rem, 4vw, 3rem);
             width: auto;
         }
 
         .brand-link .name {
             font-weight: 600;
-            font-size: 16px;
+            font-size: clamp(0.75rem, 1.3vw, 1rem);
             letter-spacing: 0.4em;
             text-transform: uppercase;
             color: var(--fg);
@@ -553,13 +832,13 @@
             pointer-events: auto;
             display: inline-flex;
             align-items: center;
-            gap: 12px;
+            gap: clamp(0.5rem, 1vw, 0.75rem);
             background: var(--fg);
             color: #fff;
-            border-radius: 100px;
-            padding: 10px 10px 10px 28px;
+            border-radius: 6.25rem;
+            padding: clamp(0.5rem, 0.8vw, 0.625rem) clamp(0.5rem, 0.8vw, 0.625rem) clamp(0.5rem, 0.8vw, 0.625rem) clamp(1rem, 2vw, 1.75rem);
             text-decoration: none;
-            font-size: 11px;
+            font-size: clamp(0.5625rem, 0.9vw, 0.6875rem);
             font-weight: 600;
             letter-spacing: 0.25em;
             text-transform: uppercase;
@@ -568,13 +847,13 @@
 
         .shop-pill:hover {
             transform: translateY(-4px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.9375rem 2.5rem rgba(0, 0, 0, 0.3);
         }
 
         .shop-pill .arrowcap {
             display: inline-flex;
-            width: 36px;
-            height: 36px;
+            width: clamp(1.5rem, 2.5vw, 2.25rem);
+            height: clamp(1.5rem, 2.5vw, 2.25rem);
             align-items: center;
             justify-content: center;
             border-radius: 50%;
@@ -594,10 +873,9 @@
 
         .stay-bg {
             position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             width: 100%;
+            height: 100%;
             pointer-events: none;
             user-select: none;
             object-fit: cover;
@@ -608,19 +886,19 @@
 
         .stay-wrap {
             position: relative;
-            max-width: 1480px;
+            max-width: 92.5rem;
             margin: 0 auto;
-            padding: 160px 80px;
+            padding: var(--space-xl) var(--gutter);
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 60px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            align-items: center;
+            gap: var(--space-lg);
         }
 
         .stay-title .l1 {
             font-family: var(--font-display);
-            font-size: clamp(45px, 14vw, 240px);
+            font-size: clamp(2.5rem, 14vw, 15rem);
             line-height: 0.85;
             letter-spacing: -0.04em;
             color: var(--fg);
@@ -632,8 +910,8 @@
             line-height: 0.85;
             letter-spacing: -0.05em;
             color: var(--fg);
-            font-size: clamp(28px, 7vw, 100px);
-            margin-top: 20px;
+            font-size: clamp(1.5rem, 7vw, 6.25rem);
+            margin-top: var(--space-sm);
         }
 
         .stay-form {
@@ -641,8 +919,8 @@
         }
 
         .stay-form p {
-            margin: 0 0 48px;
-            font-size: 20px;
+            margin: 0 0 clamp(1.5rem, 4vw, 3rem);
+            font-size: clamp(1rem, 1.5vw, 1.25rem);
             line-height: 1.6;
             color: var(--muted);
         }
@@ -650,9 +928,9 @@
         .sub-form {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: clamp(0.75rem, 2vw, 1.25rem);
             border-bottom: 2px solid var(--border);
-            padding-bottom: 16px;
+            padding-bottom: 1rem;
             transition: border-color 0.4s ease;
         }
 
@@ -665,21 +943,24 @@
             flex: 1;
             outline: none;
             border: none;
-            font-size: 20px;
+            font-size: clamp(1rem, 1.5vw, 1.25rem);
             color: var(--fg);
             font-family: var(--font-body);
+            min-width: 0;
         }
 
         .sub-form button {
             background: none;
             border: none;
-            font-size: 13px;
+            font-size: clamp(0.6875rem, 1vw, 0.8125rem);
             font-weight: 600;
             letter-spacing: 0.3em;
             text-transform: uppercase;
             color: var(--accent);
             cursor: pointer;
             transition: transform 0.3s ease;
+            white-space: nowrap;
+            min-height: 2.75rem;
         }
 
         .sub-form button:hover {
@@ -698,76 +979,34 @@
 
         .footer-wrap {
             position: relative;
-            max-width: 1480px;
+            max-width: 92.5rem;
             margin: 0 auto;
-            padding: 60px 80px;
-        }
-
-        .footer-cols {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 80px;
-            margin-bottom: 120px;
-        }
-
-        .footer-head {
-            margin-bottom: 36px;
-            color: rgba(0, 0, 0, 0.4);
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.4em;
-            text-transform: uppercase;
-        }
-
-        .footer-col ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        .footer-col li {
-            margin-bottom: 18px;
-        }
-
-        .footer-col a {
-            font-size: 17px;
-            font-weight: 500;
-            color: var(--fg);
-            text-decoration: none;
-        }
-
-        .footer-col a:hover {
-            color: var(--accent);
-        }
-
-        .footer-news p {
-            margin: 0 0 28px;
-            color: var(--muted);
-            font-size: 16px;
-            line-height: 1.6;
-        }
-
-        .footer-bottom {
+            padding: var(--space-md) var(--gutter);
             display: flex;
-            flex-direction: row;
-            align-items: center;
             justify-content: space-between;
-            gap: 40px;
+            align-items: center;
+            gap: var(--space-md);
         }
 
         .footer-meta {
             color: var(--muted);
-            font-size: 12px;
+            font-size: clamp(0.5625rem, 0.9vw, 0.75rem);
             font-weight: 600;
             letter-spacing: 0.3em;
             text-transform: uppercase;
         }
 
+        .footer-meta-lang {
+            text-align: right;
+        }
+
         .footer-social {
             display: flex;
             align-items: center;
-            gap: 32px;
-            font-size: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: clamp(1rem, 2.5vw, 2rem);
+            font-size: clamp(0.5625rem, 0.9vw, 0.75rem);
             font-weight: 600;
             letter-spacing: 0.3em;
             text-transform: uppercase;
@@ -776,6 +1015,7 @@
         .footer-social a {
             color: var(--fg);
             text-decoration: none;
+            transition: color 0.3s ease;
         }
 
         .footer-social a:hover {
@@ -786,11 +1026,18 @@
             color: rgba(0, 0, 0, 0.15);
         }
 
-        /* blur-up reveal */
+        .hotline-link {
+            color: var(--accent) !important;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        /* ===== blur-up reveal ===== */
         .blur-up {
             opacity: 0;
-            transform: translateY(60px);
-            filter: blur(40px);
+            transform: translateY(3.75rem);
+            filter: blur(2.5rem);
             transition: all 1.4s cubic-bezier(0.2, 0, 0, 1);
         }
 
@@ -800,121 +1047,227 @@
             filter: blur(0);
         }
 
-        /* Responsive Audit fixes */
+        /* ==========================================================
+           RESPONSIVE MEDIA QUERIES
+           ========================================================== */
+
+        /* --- Desktop Large (>1024px) --- */
         @media (min-width: 1024px) {
             .footer-cols {
                 grid-template-columns: repeat(4, 1fr);
-                gap: 40px;
+                gap: 2.5rem;
             }
         }
 
+        /* --- Tablet landscape / small desktop (≤1200px) --- */
         @media (max-width: 1200px) {
-
-            .hero-logo,
-            .hero-header {
-                padding-left: 60px;
-                padding-right: 60px;
-            }
-
             .info-tr {
-                right: 60px;
+                right: 3.75rem;
             }
 
-            .info-bl,
+            .info-bl {
+                left: 3.75rem;
+            }
+
             .cta-br {
-                left: 60px;
-                right: 60px;
+                right: 3.75rem;
             }
         }
 
+        /* --- Tablet (≤1024px) --- */
         @media (max-width: 1024px) {
-            .hero-logo {
-                top: 60px;
-                left: 40px;
-            }
-
-            .hero-header {
-                padding: 30px 40px;
-            }
-
             .info-tr,
             .info-bl,
             .cta-br {
                 scale: 0.9;
             }
+
+            .center-brand .logo-img {
+                height: clamp(3.5rem, 10vw, 6.25rem);
+            }
+
+            .center-brand .brand-row span {
+                font-size: clamp(1.75rem, 4.5vw, 3rem);
+            }
         }
 
+        /* --- Tablet portrait / large mobile (≤768px) --- */
         @media (max-width: 768px) {
-            .hero-logo {
-                top: 40px;
-                left: 30px;
+            .hero-header {
+                display: block;
+                z-index: 1000;
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+
+            .hero-header .shop-pill {
+                position: fixed;
+                top: max(1rem, var(--safe-top));
+                right: max(1rem, var(--safe-right));
+                display: inline-flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+
+            /* Phone hero vertical budget. The brand copy, photo, CTA and menu
+               rail each used to carry an independent hard-coded offset, which is
+               why at 375x812 the copy landed 32px on top of the photo. Every
+               layer below derives from these, so they cannot collide. */
+            :root {
+                /* The logo sits top-left at its own offset while the brand copy is
+                   centred, so on a narrow phone the caption's right edge runs into
+                   "Signature". --hero-top was an independent constant and at both
+                   375x667 and 320x568 it put the brand row 14px inside the logo
+                   block. Floor it at the logo's own bottom edge instead. The
+                   shorter tiers below override --hero-top-base only, and because
+                   custom properties substitute lazily the max() re-resolves
+                   against whichever base is in force. */
+                --hero-top-base: calc(5.5rem + var(--safe-top));
+                --logo-h: clamp(2.5rem, 10vw, 3.75rem);
+                /* Caption block below the mark: its margin-top plus its single
+                   line, which .hero-logo .collection pins to 1em below. */
+                --logo-cap-h: calc(var(--space-sm) + 0.625rem);
+                --hero-top: max(var(--hero-top-base), calc(var(--gutter) + var(--safe-top) + var(--logo-h) + var(--logo-cap-h) + 0.4rem));
+                --brand-h: 3.25rem;
+                --cta-h: 2.5rem;
+                --hero-gap: 0.85rem;
+                /* The band left for the hero art, named once. The static photo and the
+                   3D canvas have to fill exactly the same rect, and every collision
+                   this layout has had came from a layer restating the arithmetic
+                   itself and then drifting from the others. */
+                --hero-reserve-top: calc(var(--hero-top) + var(--brand-h) + var(--hero-gap));
+                --hero-reserve-bottom: calc(var(--rail-h) + var(--cta-h) + var(--hero-gap) * 2 + var(--safe-bottom));
+            }
+
+            .static-hero {
+                padding: var(--hero-reserve-top) var(--gutter) var(--hero-reserve-bottom);
+            }
+
+            /* Fill the budgeted zone and let object-fit: contain choose the largest
+               rect that fits, rather than racing separate vw and vh caps. */
+            .static-hero img {
+                width: 100%;
+                height: 100%;
             }
 
             .hero-logo-img {
-                height: 60px;
+                height: var(--logo-h);
             }
 
-            .hero-header {
-                padding: 24px 30px;
+            .hero-logo .collection {
+                font-size: 0.625rem;
+                letter-spacing: 0.2em;
+                /* --logo-cap-h below is exactly margin-top + this line box, so the
+                   line box must not depend on the inherited line-height. */
+                line-height: 1;
             }
 
             .header-logo {
-                height: 36px;
+                height: 2.25rem;
             }
 
             .brand-link .name {
-                font-size: 13px;
+                font-size: 0.8125rem;
                 letter-spacing: 0.3em;
-            }
-
-            .shop-pill {
-                padding: 8px 8px 8px 20px;
-                font-size: 10px;
-            }
-
-            .shop-pill .arrowcap {
-                width: 28px;
-                height: 28px;
             }
 
             .shop-pill span:first-child {
                 display: none;
             }
 
+            .shop-pill {
+                width: 2.75rem;
+                min-width: 2.75rem;
+                height: 2.75rem;
+                min-height: 2.75rem;
+                padding: 0.25rem;
+                justify-content: center;
+                overflow: visible;
+            }
+
+            .shop-pill .arrowcap {
+                width: 2.25rem;
+                height: 2.25rem;
+            }
+
+            /* Hide corner info on mobile — not enough room */
             .info-tr,
             .info-bl {
                 display: none;
             }
 
+            /* Center the CTA on mobile */
             .cta-br {
                 left: 50% !important;
                 right: auto !important;
-                bottom: 40px !important;
+                bottom: calc(var(--rail-h) + var(--hero-gap) + var(--safe-bottom)) !important;
                 transform: translateX(-50%) !important;
                 align-items: center !important;
-                width: 90vw !important;
+                width: min(90vw, 28rem) !important;
+            }
+
+            .center-brand {
+                /* Top-anchored inside its reserved band. With the base rule's
+                   translate(-50%, -50%) the copy's own height pulled it upward
+                   into the photo, and the 17% anchor drifted with viewport height. */
+                top: var(--hero-top);
+                bottom: auto;
+                transform: translateX(-50%);
+                min-height: var(--brand-h);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: min(92vw, 30rem);
+            }
+
+            .center-brand .stack {
+                white-space: normal;
+            }
+
+            .center-brand .brand-row {
+                justify-content: center;
+                flex-wrap: wrap;
+                text-align: center;
+            }
+
+            .center-brand .collection {
+                text-align: center;
+                max-width: 90vw;
+                white-space: normal;
+                letter-spacing: 0.16em;
+                line-height: 1.4;
+            }
+
+            .scroll-hint {
+                display: none;
             }
 
             .cta-br p {
-                text-align: center;
-                width: 100%;
-                font-size: 13px;
-                margin-bottom: 24px;
+                display: none;
             }
 
-            .btn-pill {
-                padding: 16px 32px;
-                font-size: 11px;
+            .cta-row {
+                justify-content: center;
             }
 
+            /* Stay section mobile */
             .stay-wrap {
-                padding: 80px 30px;
+                grid-template-columns: 1fr;
                 text-align: center;
+                min-height: auto;
+                padding-top: var(--space-lg);
+                padding-bottom: var(--space-lg);
+                gap: var(--space-md);
+            }
+
+            .stay-form {
+                max-width: 100%;
+                margin: 0 auto;
             }
 
             .sub-form {
                 flex-direction: column;
-                gap: 24px;
+                gap: 1.25rem;
                 border-bottom: none;
             }
 
@@ -922,36 +1275,241 @@
                 border-bottom: 2px solid var(--border);
                 width: 100%;
                 text-align: center;
-                padding-bottom: 12px;
+                padding-bottom: 0.75rem;
             }
 
+            /* Footer mobile */
             .footer-wrap {
-                padding: 60px 30px;
-            }
-
-            .footer-cols {
-                grid-template-columns: 1fr;
-                gap: 50px;
-                text-align: center;
-            }
-
-            .footer-bottom {
                 flex-direction: column;
-                gap: 40px;
+                gap: 1.5rem;
                 text-align: center;
+                padding-top: var(--space-md);
+                padding-bottom: var(--space-md);
+            }
+
+            .footer-meta-copyright {
+                order: 2;
             }
 
             .footer-social {
+                order: 1;
                 justify-content: center;
-                flex-wrap: wrap;
-                gap: 20px;
+                gap: 1rem;
             }
 
+            .footer-meta-lang {
+                order: 3;
+                text-align: center;
+            }
+
+            /* Orbit label on mobile */
             .orbit-label {
                 left: 50% !important;
                 top: 105% !important;
                 text-align: center;
-                width: 280px !important;
+                width: min(16rem, 70vw) !important;
+            }
+        }
+
+        /* --- Small mobile (≤480px) --- */
+        /* Short phones (SE-class, and phone-width landscape). The fixed reserves
+           in the 768px block left the hero photo only ~130px of the 568px viewport, so pull the
+           rail, header inset and gaps in and hand the room back to the photo. */
+        @media (max-width: 768px) and (max-height: 700px) {
+            :root {
+                --rail-h: min(34vh, 16rem);
+                --hero-top-base: calc(4.25rem + var(--safe-top));
+                --brand-h: 2.75rem;
+                --hero-gap: 0.6rem;
+            }
+        }
+
+        /* Phone-width landscape. 375px of height cannot carry a header, brand copy,
+           photo, CTA and menu rail at once: the photo collapsed to a 48px thumbnail
+           and the menu circles to 40px, both of which read as broken. Drop the photo
+           — it is the one element that carries no information at that size — and hand
+           the height to the rail. Ordered after the max-height:700px tier so these
+           :root values win where both queries match. */
+        @media (max-width: 768px) and (max-height: 480px) {
+            :root {
+                /* The rail cannot have 58vh here. At 568x320 the header offset,
+                   brand copy, CTA and rail together asked for 336px of a 320px
+                   viewport, so the CTA landed on the brand line and the mark.
+                   48vh is what is left once the other three are paid for. */
+                --rail-h: min(48vh, 13rem);
+                --hero-top-base: calc(3.5rem + var(--safe-top));
+                --brand-h: 2.5rem;
+                --hero-gap: 0.5rem;
+                /* Height is the scarce axis in landscape, so size the mark against
+                   height: 10vw gave it 60px of a 375px viewport, and the brand copy
+                   has to clear it. */
+                --logo-h: clamp(1.75rem, 7vh, 2.5rem);
+                --logo-cap-h: 0px;
+            }
+
+            /* The mark alone brands the corner at this height. Its caption costs
+               ~23px of a 375px viewport and the centred copy already names the
+               range two lines below it. */
+            .hero-logo .collection {
+                display: none;
+            }
+
+            .static-hero img,
+            html[data-mode="phone"][data-hero3d="on"] #three-canvas {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            :root {
+                --logo-h: clamp(2rem, 12vw, 3rem);
+                /* Matches the smaller margin-top and font-size set just below. */
+                --logo-cap-h: calc(0.375rem + 0.5rem);
+            }
+
+            .hero-logo .collection {
+                font-size: 0.5rem;
+                margin-top: 0.375rem;
+            }
+
+            .shop-pill {
+                padding: 0.375rem 0.375rem 0.375rem 0.75rem;
+                font-size: 0.5rem;
+                gap: 0.375rem;
+            }
+
+            .shop-pill .arrowcap {
+                width: 1.25rem;
+                height: 1.25rem;
+            }
+
+            .shop-pill .arrowcap svg {
+                width: 0.625rem;
+                height: 0.625rem;
+            }
+
+            .center-brand .logo-img {
+                height: clamp(2.5rem, 12vw, 4rem);
+            }
+
+            .center-brand .brand-row span {
+                font-size: clamp(1.25rem, 6vw, 2rem);
+            }
+
+            .center-brand .collection {
+                font-size: 0.5rem;
+                letter-spacing: 0.25em;
+            }
+
+            .cta-br p {
+                font-size: 0.625rem;
+                letter-spacing: 0.1em;
+                margin-bottom: 0.75rem;
+            }
+
+            .btn-pill {
+                padding: 0.625rem 1.25rem;
+                font-size: 0.5625rem;
+            }
+
+            .btn-circle {
+                width: 2rem;
+                height: 2rem;
+                margin-left: -0.5rem;
+            }
+
+            .btn-circle svg {
+                width: 0.875rem;
+                height: 0.875rem;
+            }
+
+            .stay-title .l1 {
+                font-size: clamp(2rem, 12vw, 3rem);
+            }
+
+            .stay-title .l2 {
+                font-size: clamp(1.125rem, 6vw, 1.75rem);
+            }
+
+            .stay-form p,
+            .sub-form input {
+                font-size: 0.9375rem;
+            }
+
+            .sub-form button {
+                font-size: 0.625rem;
+            }
+
+            .footer-meta {
+                font-size: 0.5rem;
+                letter-spacing: 0.15em;
+            }
+
+            .footer-social {
+                font-size: 0.5rem;
+                letter-spacing: 0.15em;
+                gap: 0.625rem;
+            }
+
+            .footer-col a {
+                font-size: 0.875rem;
+            }
+
+            .scroll-hint {
+                bottom: 0.75rem;
+            }
+
+            .scroll-hint .well {
+                width: 1.125rem;
+                height: 1.875rem;
+            }
+        }
+
+        /* --- Touch device: disable hover scale on orbit items --- */
+        @media (hover: none) {
+            .orbit-item:hover .img-wrap {
+                transform: none;
+            }
+
+            .shop-pill:hover,
+            .btn-pill:hover,
+            .btn-circle:hover,
+            .sub-form button:hover {
+                transform: none;
+                box-shadow: none;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            html {
+                scroll-behavior: auto;
+            }
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+
+            .blur-up {
+                opacity: 1;
+                transform: none;
+                filter: none;
+            }
+
+            .scroll-dot {
+                animation: none;
+            }
+
+            .shop-pill:hover,
+            .btn-pill:hover,
+            .btn-circle:hover,
+            .sub-form button:hover {
+                transform: none !important;
+                box-shadow: none !important;
             }
         }
     </style>
@@ -962,7 +1520,7 @@
         <div class="sticky">
             <header class="hero-header" id="hero-header">
                 <a href="https://drive.google.com/drive/folders/1hUPnHsirl39SLkRd1kaCjdormESvTsct" target="_blank"
-                    rel="noopener noreferrer" class="shop-pill sans uppercase"><span>Explore Menu</span><span
+                    rel="noopener noreferrer" class="shop-pill sans uppercase" aria-label="Explore menu" title="Explore menu"><span>Explore Menu</span><span
                         class="arrowcap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M5 12h14M12 5l7 7-7 7" />
@@ -974,9 +1532,9 @@
                 <span class="collection sans uppercase">The Crispy Collection</span>
             </div>
 
-            <video id="bg-video" autoplay loop muted playsinline aria-hidden="true">
-                <source src="media/WhatsApp%20Video%202026-06-17%20at%2012.42.27%20AM.mp4" type="video/mp4" />
-            </video>
+            <div class="static-hero" id="static-hero" aria-hidden="true">
+                <img src="media/Gemini_Generated_Image_w35ze8w35ze8w35z.png" alt="Mashhoor crispy chicken bucket" />
+            </div>
 
             <canvas id="three-canvas"></canvas>
 
@@ -990,7 +1548,7 @@
                 <div class="reveal-white"></div>
                 <div class="reveal-inner">
                     <div class="orbit-frame">
-                        <div class="orbit-rotation" id="orbit-rotation" aria-label="Signature Menu Items Carousel">
+                        <div class="orbit-rotation" id="orbit-rotation" role="region" tabindex="0" aria-label="Signature menu items">
                         </div>
                     </div>
                 </div>
@@ -1015,68 +1573,63 @@
                     <p class="sans overlay-fade uppercase" id="ov-cta-p">Modern Egyptian Crispy Chicken. Premium
                         Sharing Boxes and Loaded Sandwiches crafted for the bold.</p>
                     <div class="cta-row overlay-fade" id="ov-cta-row" style="pointer-events:auto;">
-                        <button class="btn-pill sans uppercase">ORDER DELIVERY</button>
-                        <button class="btn-circle" aria-label="Start Order"><svg width="20" height="20"
+                        <a class="btn-pill sans uppercase" href="https://drive.google.com/drive/folders/1hUPnHsirl39SLkRd1kaCjdormESvTsct" target="_blank" rel="noopener noreferrer">ORDER DELIVERY</a>
+                        <a class="btn-circle" href="https://drive.google.com/drive/folders/1hUPnHsirl39SLkRd1kaCjdormESvTsct" target="_blank" rel="noopener noreferrer" aria-label="Start order"><svg width="20" height="20"
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px;">
                                 <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg></button>
+                            </svg></a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <section class="stay">
+    <section class="stay" id="newsletter">
         <img class="stay-bg"
             src="https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=2000&auto=format&fit=crop" alt=""
             aria-hidden="true" />
-        <div class="container-lg stay-wrap">
-            <div class="row align-items-center gy-5">
-                <div class="col-12 col-lg-7 stay-title blur-up" data-reveal>
-                    <div class="l1">Taste <span class="italic">the</span></div>
-                    <div class="l2">Experience</div>
-                </div>
-                <div class="col-12 col-lg-5 stay-form blur-up" data-reveal data-delay="300">
-                    <p class="fs-5 text-muted mb-4">Join the Mashhoor Inner Circle for exclusive early access to seasonal boxes and branch openings across Egypt.</p>
-                    <form class="sub-form d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-3 border-0 pb-0" id="newsletter-form">
-                        <input type="email" class="form-control bg-transparent text-center text-sm-start text-dark border-0 border-bottom rounded-0 border-secondary px-0 py-2 fs-5 w-100"
-                            placeholder="Enter your email address" aria-label="Email subscription" required />
-                        <button type="submit" class="btn text-danger text-uppercase fw-bold tracking-wider py-2">Subscribe →</button>
-                    </form>
-                    <div id="newsletter-success" style="display: none; opacity: 0; color: var(--accent); font-size: 20px; font-weight: 500; margin-top: 24px; transition: opacity 0.5s ease, transform 0.5s ease; transform: translateY(10px); align-items: center; gap: 8px;">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        Subscribed successfully!
-                    </div>
+        <div class="stay-wrap">
+            <div class="stay-title blur-up" data-reveal>
+                <div class="l1">Taste <span class="italic">the</span></div>
+                <div class="l2">Experience</div>
+            </div>
+            <div class="stay-form blur-up" data-reveal data-delay="300">
+                <p>Join the Mashhoor Inner Circle for exclusive early access to seasonal boxes and branch openings across Egypt.</p>
+                <form class="sub-form" id="newsletter-form">
+                    <input type="email" placeholder="Enter your email address" aria-label="Email subscription" required />
+                    <button type="submit">Subscribe →</button>
+                </form>
+                <div id="newsletter-success" role="status" aria-live="polite" style="display: none; opacity: 0; color: var(--accent); font-size: 20px; font-weight: 500; margin-top: 24px; transition: opacity 0.5s ease, transform 0.5s ease; transform: translateY(10px); align-items: center; gap: 8px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Subscribed successfully!
                 </div>
             </div>
         </div>
     </section>
 
     <footer class="footer">
-        <div class="container-lg py-5">
-            <div class="row align-items-center justify-content-between gy-4 blur-up text-center text-md-start" data-reveal data-delay="300">
-                <div class="col-12 col-md-4 footer-meta order-2 order-md-1">
-                    © 2026 MASHHOOR CRISPY CHICKEN (مشهور)
-                </div>
-                <div class="col-12 col-md-5 footer-social d-flex flex-wrap justify-content-center align-items-center gap-3 order-1 order-md-2">
-                    <a href="https://www.instagram.com/mashhoor.egypt/" target="_blank" rel="noopener noreferrer">Instagram</a>
-                    <span class="text-secondary opacity-50">•</span>
-                    <a href="https://www.facebook.com/p/Mashhoor-Egypt-61576333537631/" target="_blank" rel="noopener noreferrer">Facebook</a>
-                    <span class="text-secondary opacity-50">•</span>
-                    <a href="https://www.tiktok.com/@mashhoor.egypt" target="_blank" rel="noopener noreferrer">TikTok</a>
-                    <span class="text-secondary opacity-50">•</span>
-                    <a href="tel:17555" style="color: var(--accent); font-weight: 700; display: inline-flex; align-items: center;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>Hotline 17555
-                    </a>
-                </div>
-                <div class="col-12 col-md-3 footer-meta text-md-end order-3 order-md-3">
-                    EG · ARABIC / ENGLISH
-                </div>
+        <div class="footer-wrap blur-up" data-reveal data-delay="300">
+            <div class="footer-meta footer-meta-copyright">
+                © 2026 MASHHOOR CRISPY CHICKEN (مشهور)
+            </div>
+            <div class="footer-social">
+                <a href="https://www.instagram.com/mashhoor.egypt/" target="_blank" rel="noopener noreferrer">Instagram</a>
+                <span class="dot">•</span>
+                <a href="https://www.facebook.com/p/Mashhoor-Egypt-61576333537631/" target="_blank" rel="noopener noreferrer">Facebook</a>
+                <span class="dot">•</span>
+                <a href="https://www.tiktok.com/@mashhoor.egypt" target="_blank" rel="noopener noreferrer">TikTok</a>
+                <span class="dot">•</span>
+                <a href="tel:17555" class="hotline-link">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>Hotline 17555
+                </a>
+            </div>
+            <div class="footer-meta footer-meta-lang">
+                EG · ARABIC / ENGLISH
             </div>
         </div>
     </footer>
@@ -1087,23 +1640,31 @@
         (function () {
             "use strict";
             var ORBIT = [
-                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM%20(1).jpeg" },
-                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM%20(2).jpeg" },
-                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM%20(3).jpeg" },
-                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM.jpeg" },
-                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.29%20AM%20(1).jpeg" },
-                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.29%20AM.jpeg" },
-                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.29%20AM%20(2).jpeg" }
+                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM%20(1).jpeg", alt: "Crispy chicken strips with fries" },
+                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM%20(2).jpeg", alt: "Mashhoor crispy chicken sharing box" },
+                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM%20(3).jpeg", alt: "Loaded crispy chicken sandwich" },
+                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.28%20AM.jpeg", alt: "Mashhoor family chicken meal" },
+                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.29%20AM%20(1).jpeg", alt: "Crispy chicken combo meal" },
+                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.29%20AM.jpeg", alt: "Signature Mashhoor chicken bucket" },
+                { src: "media/WhatsApp%20Image%202026-06-17%20at%2012.42.29%20AM%20(2).jpeg", alt: "Crispy chicken platter" }
             ];
 
             var TARGET_RADIUS = 680, BASE = 800, FOCAL = 50;
+            // Vertical radius of the ring. It used to equal TARGET_RADIUS, so the orbit
+            // was a 1360px circle and only a narrow arc of it fell inside the viewport.
+            // Worse, the 2*PI/7 gap between cards worked out to ~690px of vertical
+            // travel against a ~400px card, so most scroll positions showed two
+            // half-cards clipped at the top and bottom with a ~300px void between them.
+            // Flatten the ellipse until adjacent cards nearly touch: the vertical
+            // spacing is ORBIT_RY * 2*PI/7, so ORBIT_RY ~ 440 puts it at ~395px.
+            var ORBIT_RY = 440;
             var rotationEl = document.getElementById("orbit-rotation"), items = [];
 
             ORBIT.forEach(function (entry, i) {
                 var wrap = document.createElement("div"); wrap.className = "orbit-item";
                 var counter = document.createElement("div"); counter.style.width = counter.style.height = "100%"; counter.style.position = "relative";
                 var imgWrap = document.createElement("div"); imgWrap.className = "img-wrap";
-                var img = document.createElement("img"); img.src = entry.src; img.alt = entry.title || ""; img.draggable = false;
+                var img = document.createElement("img"); img.src = entry.src; img.alt = entry.alt || entry.title || "Signature menu item"; img.draggable = false;
                 imgWrap.appendChild(img); counter.appendChild(imgWrap);
 
                 var label = document.createElement("div");
@@ -1132,36 +1693,80 @@
 
             var stage = document.getElementById("stage"), reveal = document.getElementById("reveal"), heroLogo = document.getElementById("hero-logo"), heroHeader = document.getElementById("hero-header"), scrollHint = document.getElementById("scroll-hint");
             var ovCenter = document.getElementById("ov-center"), ovTr = document.getElementById("ov-tr"), ovBl = document.getElementById("ov-bl"), ovCtaP = document.getElementById("ov-cta-p"), ovCtaRow = document.getElementById("ov-cta-row");
-            var bgVideo = document.getElementById("bg-video");
-            var orbitProgress = 0, prevScroll = 0, lastTime = 0;
-            var chicken3D = window.initThreeChicken ? window.initThreeChicken("three-canvas") : null;
+            var threeCanvas = document.getElementById("three-canvas");
+            var orbitProgress = 0, prevScroll = 0, lastTime = 0, rafId = 0;
+            var motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-            if (bgVideo) {
-                bgVideo.oncanplay = function () { bgVideo.classList.add("loaded"); };
-                if (bgVideo.readyState >= 3) bgVideo.classList.add("loaded");
+            function hasWebGL() {
+                try {
+                    var probe = document.createElement("canvas");
+                    return !!(window.WebGLRenderingContext && (probe.getContext("webgl") || probe.getContext("experimental-webgl")));
+                } catch (err) {
+                    return false;
+                }
+            }
+
+            function getMode() {
+                if (motionQuery.matches) return "reduced";
+                if (window.innerWidth <= 768) return "phone";
+                return hasWebGL() ? "desktop" : "reduced";
+            }
+
+            var mode = getMode();
+            document.documentElement.dataset.mode = mode;
+            var chicken3D = null;
+            if ((mode === "desktop" || mode === "phone") && window.initThreeChicken) {
+                try {
+                    // Phones build the scene at a lower sampling rate: no shadow pass,
+                    // no MSAA, half-resolution texture, coarser meshes, three lights
+                    // instead of five. Same composition and palette, a fraction of the
+                    // per-frame cost.
+                    chicken3D = window.initThreeChicken("three-canvas", { simple: mode === "phone" });
+                } catch (err) {
+                    chicken3D = null;
+                }
+            }
+            if (mode === "desktop" && !chicken3D) {
+                mode = "reduced";
+                document.documentElement.dataset.mode = mode;
+            }
+            // Only swap the photo out for the canvas once there is something to draw.
+            if (mode === "phone" && chicken3D) {
+                document.documentElement.dataset.hero3d = "on";
+                chicken3D.resize();
+            }
+            if (!chicken3D && threeCanvas) threeCanvas.style.display = "none";
+
+            function setStaticState() {
+                heroLogo.style.opacity = heroHeader.style.opacity = "1";
+                scrollHint.style.opacity = "0";
+                reveal.style.clipPath = "none";
+                ovCenter.style.opacity = "1";
+                ovCenter.style.filter = "none";
+                [ovTr, ovBl, ovCtaP, ovCtaRow].forEach(function (el) {
+                    el.style.opacity = "1";
+                    el.style.transform = "none";
+                    el.style.filter = "none";
+                });
+                items.forEach(function (it) {
+                    it.wrap.style.opacity = "1";
+                    it.wrap.style.transform = "none";
+                    it.wrap.style.width = it.wrap.style.height = "clamp(7.5rem, 27vw, 11rem)";
+                });
             }
 
             function frame(t) {
+                if (document.hidden || mode !== "desktop") return;
                 var advance = lastTime ? (t - lastTime) / 1000 : 0; lastTime = t;
-                var rect = stage.getBoundingClientRect(), total = stage.offsetHeight - window.innerHeight;
+                var rect = stage.getBoundingClientRect(), total = Math.max(1, stage.offsetHeight - window.innerHeight);
                 var p = clamp01(-rect.top / total);
 
-                const threeCanvas = document.getElementById("three-canvas");
-                if (threeCanvas) {
-                    const canvasOpacity = track(p, [0, 0.03, 0.08], [1, 1, 0]);
-                    threeCanvas.style.opacity = canvasOpacity;
-                    if (canvasOpacity === 0) {
-                        threeCanvas.style.display = "none";
-                        threeCanvas.style.pointerEvents = "none";
-                    } else {
-                        threeCanvas.style.display = "block";
-                        threeCanvas.style.pointerEvents = "auto";
-                    }
-                }
+                var canvasOpacity = track(p, [0, 0.03, 0.08], [1, 1, 0]);
+                threeCanvas.style.opacity = canvasOpacity;
+                threeCanvas.style.display = canvasOpacity > 0 ? "block" : "none";
+                threeCanvas.style.pointerEvents = canvasOpacity > 0 ? "auto" : "none";
 
-                if (chicken3D && p < 0.10) {
-                    chicken3D.update(p, t);
-                }
+                if (chicken3D && p < 0.10) chicken3D.update(p, t);
 
                 heroLogo.style.opacity = heroHeader.style.opacity = scrollHint.style.opacity = track(p, [0, 0.03, 0.08], [1, 1, 0]);
                 var r = track(p, [0, 0.08, 1], [0, 55, 55]);
@@ -1176,10 +1781,18 @@
                     el.style.filter = "blur(" + blurVal + "px)";
                 });
 
-                var scale = (rotationEl.parentElement.clientWidth || BASE) / BASE;
-                var stops = [0.15, 0.25, 0.85, 0.95, 1], itemSize = track(p, stops, [100, 400, 400, 100, 100]), rx = track(p, stops, [350, TARGET_RADIUS, TARGET_RADIUS, 350, 350]), ry = track(p, stops, [150, TARGET_RADIUS, TARGET_RADIUS, 150, 150]), rot = track(p, stops, [-12, 0, 0, -12, -12]), focus = track(p, stops, [0, 1, 1, 0, 0]);
-                
-                var transX = track(p, stops, [0, -(TARGET_RADIUS + 250), -(TARGET_RADIUS + 250), 0, 0]) * scale;
+                // The orbit is authored in an 800px design space (BASE). Scaling it by
+                // .orbit-frame's width (95vw = 1368px at 1440) gave 1.71x, so 400px cards
+                // rendered at 684px and transX pushed the ring 1590px off to the left.
+                // Drive it from the smaller viewport axis instead — the ring is bound
+                // vertically — and cap it so large displays do not blow the cards up.
+                var scale = Math.min(Math.min(window.innerWidth, window.innerHeight) / BASE, 1.25);
+                var stops = [0.15, 0.25, 0.85, 0.95, 1], itemSize = track(p, stops, [100, 400, 400, 100, 100]), rx = track(p, stops, [350, TARGET_RADIUS, TARGET_RADIUS, 350, 350]), ry = track(p, stops, [150, ORBIT_RY, ORBIT_RY, 150, 150]), rot = track(p, stops, [-12, 0, 0, -12, -12]), focus = track(p, stops, [0, 1, 1, 0, 0]);
+                // transX slides the ring so its focal point (ang = PI, i.e. +rx) lands in
+                // view. The extra -250 reserved room on the right for .orbit-label, but no
+                // ORBIT entry carries a title/desc so every label is display:none — that
+                // offset just left the right half of the screen blank. Centre it instead.
+                var transX = track(p, stops, [0, -TARGET_RADIUS, -TARGET_RADIUS, 0, 0]) * scale;
                 rotationEl.style.transform = "rotate(" + rot + "deg) translateX(" + transX + "px)";
 
                 orbitProgress += (p > 0.15 && p < 0.85) ? (p - prevScroll) * 200 : advance * 3.0; prevScroll = p;
@@ -1192,15 +1805,78 @@
                     it.wrap.style.zIndex = Math.round(itemScale * 100); it.wrap.style.opacity = track(p, [0.1, 0.15], [0, 1]);
                     it.counter.style.transform = "rotate(" + (-rot) + "deg)";
                     it.label.style.opacity = focus * track(dist, [0, 5, 10], [1, 1, 0]);
-                    
-                    var isMobile = window.innerWidth <= 768;
-                    it.label.style.transform = isMobile 
-                        ? "translateX(-50%) translateY(" + track(dist, [0, 10], [0, 10]) + "px)" 
-                        : "translateY(-50%) translateX(" + track(dist, [0, 10], [0, 20]) + "px)";
+                    it.label.style.transform = "translateY(-50%) translateX(" + track(dist, [0, 10], [0, 20]) + "px)";
                 });
-                requestAnimationFrame(frame);
+                if (p < 0.995 && !document.hidden) rafId = requestAnimationFrame(frame);
+                else rafId = 0;
             }
-            requestAnimationFrame(frame);
+
+            // Phone drives the 3D from its own idle loop: the bucket's own float and
+            // sway, with none of the desktop scroll choreography. p is pinned at 0 so
+            // the steam keeps running. The loop stops as soon as the hero leaves the
+            // viewport and the scroll handler below restarts it, so a phone is never
+            // rendering an off-screen canvas.
+            var phoneRaf = 0;
+
+            function heroInView() {
+                var r = stage.getBoundingClientRect();
+                return r.bottom > 0 && r.top < window.innerHeight;
+            }
+
+            function phoneFrame(t) {
+                if (document.hidden || mode !== "phone" || !chicken3D || !heroInView()) {
+                    phoneRaf = 0;
+                    return;
+                }
+                chicken3D.update(0, t);
+                phoneRaf = requestAnimationFrame(phoneFrame);
+            }
+
+            function startPhone3D() {
+                if (mode === "phone" && chicken3D && !phoneRaf && !document.hidden && heroInView()) {
+                    phoneRaf = requestAnimationFrame(phoneFrame);
+                }
+            }
+
+            if (mode === "desktop") rafId = requestAnimationFrame(frame);
+            else {
+                setStaticState();
+                startPhone3D();
+            }
+
+            document.addEventListener("visibilitychange", function () {
+                if (document.hidden) {
+                    if (rafId) cancelAnimationFrame(rafId);
+                    if (phoneRaf) { cancelAnimationFrame(phoneRaf); phoneRaf = 0; }
+                } else if (mode === "desktop") {
+                    lastTime = 0;
+                    rafId = requestAnimationFrame(frame);
+                } else {
+                    startPhone3D();
+                }
+            });
+
+            var resizeTimer;
+            function handleViewportChange() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    var nextMode = getMode();
+                    if (nextMode !== mode) window.location.reload();
+                }, 160);
+            }
+            window.addEventListener("resize", handleViewportChange, { passive: true });
+            window.addEventListener("orientationchange", handleViewportChange, { passive: true });
+            if (motionQuery.addEventListener) motionQuery.addEventListener("change", handleViewportChange);
+
+            window.addEventListener("scroll", function () {
+                startPhone3D();
+                if (mode !== "desktop" || document.hidden || rafId) return;
+                var rect = stage.getBoundingClientRect();
+                if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                    lastTime = 0;
+                    rafId = requestAnimationFrame(frame);
+                }
+            }, { passive: true });
 
             var io = new IntersectionObserver(function (en) { en.forEach(function (e) { if (e.isIntersecting) { setTimeout(function () { e.target.classList.add("in"); }, parseInt(e.target.getAttribute("data-delay") || "0", 10)); io.unobserve(e.target); } }); }, { threshold: 0.2 });
             document.querySelectorAll("[data-reveal]").forEach(function (el) { io.observe(el); });
@@ -1226,7 +1902,7 @@
             }
         })();
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
 </body>
 
 </html>

@@ -1,0 +1,16 @@
+# Throwaway Chrome profiles from screenshot/automation runs
+.chrome-*/
+
+# Scratch verification screenshots
+/*.png
+!media/*.png
+
+# OS / editor cruft
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Layout verification harness (headless-Chrome probes) used while fixing the UI.
+# Kept on disk because it is how every layout claim here was measured; not part
+# of the site build.
+.tools/

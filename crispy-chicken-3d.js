@@ -118,44 +118,57 @@
         return a + (b - a) * t;
     }
 
+    // Reduced-cost path for phones. The full-quality scene runs a 2048x2048 shadow
+    // pass, a 512px procedural texture and ~4.5k triangles per chicken piece, which
+    // is far more than a phone GPU can hold 60fps on. Everything keyed off LOW below
+    // is a proportional reduction, so the composition and palette stay identical --
+    // only the sampling rate drops. initThreeChicken sets it before anything is built.
+    let LOW = false;
+
     // --- HIGH-REALISM PROCEDURAL TEXTURE GENERATOR FOR CRISPY BREADING ---
     function generateFriedChickenTexture() {
-        const size = 512;
+        const size = LOW ? 256 : 512;
+        // Crumb count, crumb size and noise frequency are all authored against 512px.
+        // Scale them together or the breading changes character instead of just
+        // resolution: a quarter of the area needs a quarter of the crumbs at half
+        // the diameter, and the noise period has to shrink to match.
+        const texScale = size / 512;
         const canvas = document.createElement("canvas");
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext("2d");
 
         // Base dark golden-brown background (represents deep, delicious crevices)
-        ctx.fillStyle = "#5c2401";
+        ctx.fillStyle = "#8a4a12";
         ctx.fillRect(0, 0, size, size);
 
-        // Draw 650 overlapping organic cornflake-like shapes
-        for (let i = 0; i < 650; i++) {
+        // Many small overlapping crumbs read as continuous breading; a few large ones
+        // read as separate petals, so favour count over size.
+        for (let i = 0; i < Math.round(1200 * texScale * texScale); i++) {
             const fx = Math.random() * size;
             const fy = Math.random() * size;
-            const fsize = 12 + Math.random() * 22;
+            const fsize = (7 + Math.random() * 13) * texScale;
 
             const randShade = Math.random();
             let c1, c2;
-            if (randShade > 0.85) {
-                c1 = "#cf4a17"; // Spicy red
-                c2 = "#6e1d03";
-            } else if (randShade > 0.35) {
-                c1 = "#fca632"; // Golden highlight
-                c2 = "#ab5b0c";
-            } else if (randShade > 0.08) {
-                c1 = "#b86714"; // Warm toasted brown
-                c2 = "#5c2b02";
+            if (randShade > 0.93) {
+                c1 = "#c2551d"; // Spicy red
+                c2 = "#7d3208";
+            } else if (randShade > 0.58) {
+                c1 = "#dd9a41"; // Golden highlight
+                c2 = "#a5641b";
+            } else if (randShade > 0.16) {
+                c1 = "#ad6f24"; // Warm toasted brown
+                c2 = "#7a420f";
             } else {
-                c1 = "#4f2202"; // Dark toasted flake
-                c2 = "#1f0c00";
+                c1 = "#6a390c"; // Dark toasted flake
+                c2 = "#3f2006";
             }
 
             const grad = ctx.createRadialGradient(fx, fy, 2, fx, fy, fsize);
             grad.addColorStop(0, c1);
             grad.addColorStop(0.75, c2);
-            grad.addColorStop(1, "rgba(92, 36, 1, 0.0)");
+            grad.addColorStop(1, "rgba(138, 74, 18, 0.0)");
 
             ctx.fillStyle = grad;
             ctx.beginPath();
@@ -180,10 +193,10 @@
         for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
                 const idx = (y * size + x) * 4;
-                const nx = x / 6.0;
-                const ny = y / 6.0;
+                const nx = x / (6.0 * texScale);
+                const ny = y / (6.0 * texScale);
 
-                const noiseVal = simplexNoise3D(nx, ny, 1.1) * 22;
+                const noiseVal = simplexNoise3D(nx, ny, 1.1) * 15;
 
                 data[idx] = Math.max(0, Math.min(255, data[idx] + noiseVal));
                 data[idx + 1] = Math.max(0, Math.min(255, data[idx + 1] + noiseVal * 0.85));
@@ -193,14 +206,51 @@
                     data[idx] = 38; data[idx + 1] = 36; data[idx + 2] = 34; // Black pepper
                 }
 
-                if (Math.random() < 0.0018) {
+                if (Math.random() < 0.0006) {
                     data[idx] = 225; data[idx + 1] = 55; data[idx + 2] = 8; // Chili flakes
                 }
             }
         }
 
         ctx.putImageData(imgData, 0, 0);
-        return new THREE.CanvasTexture(canvas);
+
+        // Colour map is sRGB; the relief and gloss maps carry raw data and must stay
+        // linear or the breading detail gets crushed.
+        const colorMap = new THREE.CanvasTexture(canvas);
+        colorMap.encoding = THREE.sRGBEncoding;
+        colorMap.wrapS = colorMap.wrapT = THREE.RepeatWrapping;
+        colorMap.repeat.set(1, 1);
+        colorMap.anisotropy = 8;
+
+        const bumpMap = new THREE.CanvasTexture(canvas);
+        bumpMap.encoding = THREE.LinearEncoding;
+        bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping;
+        bumpMap.repeat.set(1, 1);
+        bumpMap.anisotropy = 8;
+
+        // Dedicated gloss map. Feeding the colour map straight into roughnessMap made
+        // the dark crevices the *glossiest* part of the surface, which is what gave the
+        // chicken its metallic sheen. Roughness has to run inverse to brightness:
+        // oily crumb tops catch light, deep crevices stay matte.
+        const roughCanvas = document.createElement("canvas");
+        roughCanvas.width = roughCanvas.height = size;
+        const rctx = roughCanvas.getContext("2d");
+        const rough = rctx.createImageData(size, size);
+        for (let i = 0; i < data.length; i += 4) {
+            const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+            const value = Math.round((1 - lum * 0.16) * 255);
+            rough.data[i] = rough.data[i + 1] = rough.data[i + 2] = value;
+            rough.data[i + 3] = 255;
+        }
+        rctx.putImageData(rough, 0, 0);
+
+        const roughnessMap = new THREE.CanvasTexture(roughCanvas);
+        roughnessMap.encoding = THREE.LinearEncoding;
+        roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
+        roughnessMap.repeat.set(1, 1);
+        roughnessMap.anisotropy = 8;
+
+        return { color: colorMap, bump: bumpMap, roughness: roughnessMap };
     }
 
     // --- MASHHOOR BUCKET TEXTURE GENERATOR ---
@@ -235,6 +285,10 @@
         ctx.fillRect(512 - 95, 0, 190, height);
 
         const texture = new THREE.CanvasTexture(canvas);
+        // Colour map: must be tagged sRGB or the dark channels of the brand red
+        // are read as linear and #e31837 renders as washed-out salmon.
+        texture.encoding = THREE.sRGBEncoding;
+        texture.anisotropy = 8;
 
         // Draw the Base64 logo on the canvas
         const img = new Image();
@@ -272,8 +326,10 @@
 
     // --- PROCEDURAL CHICKEN PIECE MESH GENERATOR ---
     function createChickenPiece(scaleX, scaleY, scaleZ, posX, posY, posZ, rotX, rotY, rotZ, chickenTexture) {
-        // High density icosahedron geometry
-        const geom = new THREE.IcosahedronGeometry(0.32, 4);
+        // Spherical UV mapping. An icosahedron gives more even topology but its UV
+        // layout is badly distorted, which smeared the breading into visible chevron
+        // streaks across each piece.
+        const geom = new THREE.SphereGeometry(0.32, LOW ? 28 : 56, LOW ? 20 : 40);
         const posAttr = geom.attributes.position;
         const v = new THREE.Vector3();
 
@@ -296,7 +352,13 @@
             const nz = v.z * 3.2 + seedZ;
             let d = simplexNoise3D(nx, ny, nz) * 0.08;
             d += simplexNoise3D(nx * 2, ny * 2, nz * 2) * 0.045;
-            d += simplexNoise3D(nx * 4, ny * 4, nz * 4) * 0.018;
+            if (!LOW) {
+                // At 28x20 segments these two octaves fall below the vertex spacing,
+                // so they only alias into jitter -- the bump map already carries
+                // detail at that frequency.
+                d += simplexNoise3D(nx * 4, ny * 4, nz * 4) * 0.017;
+                d += simplexNoise3D(nx * 8, ny * 8, nz * 8) * 0.005;
+            }
 
             const norm = v.clone().normalize();
             v.addScaledVector(norm, d);
@@ -304,16 +366,20 @@
         }
         geom.computeVertexNormals();
 
-        const mat = new THREE.MeshPhysicalMaterial({
-            map: chickenTexture,
-            bumpMap: chickenTexture,
-            bumpScale: 0.12,
-            roughnessMap: chickenTexture,
-            roughness: 0.85,
+        // Physical adds clearcoat/sheen/iridescence uniforms and their branches. Both
+        // are switched off below, so on phones Standard is visually identical here and
+        // compiles a materially cheaper shader.
+        const MatClass = LOW ? THREE.MeshStandardMaterial : THREE.MeshPhysicalMaterial;
+        const mat = new MatClass({
+            map: chickenTexture.color,
+            bumpMap: chickenTexture.bump,
+            bumpScale: 0.055,
+            roughnessMap: chickenTexture.roughness,
+            roughness: 0.95,
             metalness: 0.0,
-            clearcoat: 0.35,              // Specular grease layer
-            clearcoatRoughness: 0.45,
-            sheen: new THREE.Color("#ffa834")
+            clearcoat: 0.0,               // any clearcoat at all reads as lacquered metal here (ignored by Standard)
+            // sheen deliberately left off: the orange sheen BSDF was the other half of
+            // the metallic-foil look, since it adds a retroreflective glow to the rim.
         });
 
         const mesh = new THREE.Mesh(geom, mat);
@@ -327,80 +393,127 @@
     }
 
     // --- MAIN 3D CHICKEN INITIALIZATION ---
-    window.initThreeChicken = function (canvasId) {
+    window.initThreeChicken = function (canvasId, opts) {
+        // Must be set before any texture or geometry is generated below.
+        LOW = !!(opts && opts.simple);
+
+        if (typeof THREE === "undefined") {
+            return null;
+        }
+
         const canvas = document.getElementById(canvasId);
         if (!canvas) {
-            console.error("Three.js canvas not found: " + canvasId);
+            return null;
+        }
+
+        try {
+            const probe = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            if (!probe) return null;
+        } catch (err) {
             return null;
         }
 
         const scene = new THREE.Scene();
 
         // Camera setup
-        const camera = new THREE.PerspectiveCamera(38, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+        const initialWidth = Math.max(1, canvas.clientWidth || window.innerWidth);
+        const initialHeight = Math.max(1, canvas.clientHeight || window.innerHeight);
+        const camera = new THREE.PerspectiveCamera(38, initialWidth / initialHeight, 0.1, 100);
         camera.position.set(0, 0, 5.5);
 
         // Renderer setup
-        const renderer = new THREE.WebGLRenderer({
-            canvas: canvas,
-            alpha: true,
-            antialias: true,
-            powerPreference: "high-performance"
-        });
-        renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                alpha: true,
+                // MSAA over a full-screen canvas is the wrong place to spend a phone's
+                // fill rate. Dropping it and raising the pixel ratio instead buys more
+                // perceived sharpness per millisecond.
+                antialias: !LOW,
+                powerPreference: LOW ? "default" : "high-performance"
+            });
+        } catch (err) {
+            return null;
+        }
+        // setPixelRatio must precede setSize — setSize derives the drawing buffer
+        // from the current ratio, so calling it first renders at CSS resolution
+        // and the whole scene comes out soft on HiDPI screens.
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW ? 1.5 : 1.75));
+        renderer.setSize(initialWidth, initialHeight, false);
+        // A 2048x2048 soft-shadow depth pass every frame is the single largest cost in
+        // the scene. The pile is lit from the front and sits against a plain backdrop,
+        // so on phones the cast shadows contribute very little for what they cost.
+        renderer.shadowMap.enabled = !LOW;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // Without this the renderer writes linear values into an sRGB buffer and
+        // every colour in the scene reads flat and desaturated.
+        renderer.outputEncoding = THREE.sRGBEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.15;
+        renderer.toneMappingExposure = 1.0;
 
         // --- DRAMATIC STUDIO LIGHTING DESIGN ---
+        // Intensities are tuned for the sRGB output pipeline above. They read much
+        // hotter than they would against a linear buffer, so keep them restrained.
 
         // 1. Soft ambient fill
-        const ambientLight = new THREE.AmbientLight(0xfff7ed, 0.55);
+        const ambientLight = new THREE.AmbientLight(0xfff7ed, 0.42);
         scene.add(ambientLight);
 
         // 2. Strong golden key light (shining from top-front-left)
-        const keyLight = new THREE.DirectionalLight(0xffb054, 3.2);
-        keyLight.position.set(-3.5, 4.0, 3.5);
-        keyLight.castShadow = true;
-        keyLight.shadow.mapSize.width = 1024;
-        keyLight.shadow.mapSize.height = 1024;
-        keyLight.shadow.camera.near = 0.5;
-        keyLight.shadow.camera.far = 15;
-        keyLight.shadow.camera.left = -3;
-        keyLight.shadow.camera.right = 3;
-        keyLight.shadow.camera.top = 3;
-        keyLight.shadow.camera.bottom = -3;
-        keyLight.shadow.bias = -0.0005;
+        const keyLight = new THREE.DirectionalLight(0xffc98a, 1.75);
+        keyLight.position.set(-2.6, 4.2, 3.2);
+        keyLight.castShadow = !LOW;
+        if (!LOW) {
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            keyLight.shadow.camera.near = 0.5;
+            keyLight.shadow.camera.far = 15;
+            keyLight.shadow.camera.left = -3;
+            keyLight.shadow.camera.right = 3;
+            keyLight.shadow.camera.top = 3;
+            keyLight.shadow.camera.bottom = -3;
+            keyLight.shadow.bias = -0.0004;
+            keyLight.shadow.radius = 4;
+        }
         scene.add(keyLight);
 
-        // 3. Cool blue fill light (shining from bottom-back-right to fill shadows)
-        const fillLight = new THREE.DirectionalLight(0x435a8f, 1.4);
-        fillLight.position.set(4, -3.5, -2);
-        scene.add(fillLight);
+        // 3. Cool blue fill light (shining from bottom-back-right to fill shadows).
+        // Every extra light costs a full lighting term per fragment, so on phones the
+        // two supporting lights are folded into the ambient above instead.
+        let fillLight = null;
+        if (!LOW) {
+            fillLight = new THREE.DirectionalLight(0x6f86bd, 0.55);
+            fillLight.position.set(4, -3.5, -2);
+            scene.add(fillLight);
+        } else {
+            ambientLight.intensity = 0.62;
+        }
 
-        // 4. Intense Mashhoor Red rim light (shining from directly behind to trace shape edge)
-        const rimLight = new THREE.PointLight(0xE31837, 8.5, 9);
+        // 4. Mashhoor Red rim light (shining from behind to trace the shape edge)
+        const rimLight = new THREE.PointLight(0xE31837, 2.6, 9);
         rimLight.position.set(0, 0.5, -3.0);
         scene.add(rimLight);
 
         // 5. Specular highlight point light (creates wet/juicy oil hotspots)
-        const specLight = new THREE.PointLight(0xffffff, 2.0, 6);
-        specLight.position.set(-1.0, 1.5, 2.5);
-        scene.add(specLight);
+        let specLight = null;
+        if (!LOW) {
+            specLight = new THREE.PointLight(0xffffff, 0.85, 6);
+            specLight.position.set(-1.0, 1.5, 2.5);
+            scene.add(specLight);
+        }
 
         // --- BUCKET AND CHICKEN GROUP ASSEMBLY ---
 
         const chickenGroup = new THREE.Group();
 
         // 1. The Striped Bucket Cylinder (Wider and stouter proportions)
-        const bucketGeom = new THREE.CylinderGeometry(1.12, 0.88, 1.15, 40, 1, false);
+        const bucketGeom = new THREE.CylinderGeometry(1.12, 0.88, 1.15, LOW ? 24 : 40, 1, false);
         const bucketTexture = generateBucketTexture();
         const bucketMat = new THREE.MeshStandardMaterial({
             map: bucketTexture,
-            roughness: 0.35,
-            metalness: 0.05
+            roughness: 0.78,   // coated paperboard, not plastic
+            metalness: 0.0
         });
         const bucketMesh = new THREE.Mesh(bucketGeom, bucketMat);
         bucketMesh.position.y = -0.15; // Offset visual center
@@ -425,41 +538,46 @@
         chickenGroup.add(rimMesh);
 
         // 3. Dark interior filler plane
-        const innerGeom = new THREE.CylinderGeometry(1.08, 1.08, 0.05, 16);
+        const innerGeom = new THREE.CylinderGeometry(1.08, 1.08, 0.05, LOW ? 12 : 16);
         const innerMat = new THREE.MeshBasicMaterial({ color: 0x240e01 });
         const innerMesh = new THREE.Mesh(innerGeom, innerMat);
         innerMesh.position.y = 0.38;
         chickenGroup.add(innerMesh);
 
-        // 4. Generating the Chicken Pile (Clean pile of 5 pieces of crispy chicken inside the box)
+        // 4. Generating the Chicken Pile
+        // Smaller, more steeply tilted pieces than a single dome: the tips need to break
+        // the silhouette or the pile fuses into one lump.
         const chickenTexture = generateFriedChickenTexture();
         const chickenPiecesGroup = new THREE.Group();
 
-        // Base filler piece (sits inside)
-        chickenPiecesGroup.add(createChickenPiece(1.6, 1.1, 1.6, 0, 0.15, 0, 0.2, 0.5, 0.1, chickenTexture));
+        // Base filler piece (sits down inside the bucket and closes the gaps)
+        chickenPiecesGroup.add(createChickenPiece(1.55, 0.92, 1.55, 0, 0.10, 0, 0.15, 0.40, 0.05, chickenTexture));
 
-        // Rim/Overflow pieces (less pieces)
-        chickenPiecesGroup.add(createChickenPiece(1.25, 1.05, 1.25, -0.42, 0.48, 0.3, 0.35, 0.45, 0.5, chickenTexture));
-        chickenPiecesGroup.add(createChickenPiece(1.2, 1.05, 1.2, 0.42, 0.48, 0.3, 0.35, -0.45, -0.5, chickenTexture));
-        chickenPiecesGroup.add(createChickenPiece(1.25, 1.1, 1.25, 0.0, 0.45, -0.38, -0.35, 0.1, 0.0, chickenTexture));
+        // Strips fanned around the rim, tilted outward
+        chickenPiecesGroup.add(createChickenPiece(1.12, 0.86, 1.12, -0.50, 0.44, 0.28, 0.55, 0.35, 0.80, chickenTexture));
+        chickenPiecesGroup.add(createChickenPiece(1.05, 0.84, 1.05, 0.52, 0.46, 0.24, 0.50, -0.50, -0.85, chickenTexture));
+        chickenPiecesGroup.add(createChickenPiece(1.06, 0.86, 1.06, 0.05, 0.44, -0.50, -0.62, 0.15, 0.20, chickenTexture));
+        chickenPiecesGroup.add(createChickenPiece(1.00, 0.82, 1.00, -0.34, 0.56, -0.30, -0.35, 0.90, -0.45, chickenTexture));
 
         // Center-top peak piece (creates height, sitting elegantly on top)
-        chickenPiecesGroup.add(createChickenPiece(1.25, 1.2, 1.25, 0.0, 0.66, 0.0, 0.15, 0.6, -0.1, chickenTexture));
+        chickenPiecesGroup.add(createChickenPiece(1.02, 0.92, 1.02, 0.02, 0.74, 0.02, 0.25, 0.60, -0.15, chickenTexture));
 
         chickenGroup.add(chickenPiecesGroup);
         scene.add(chickenGroup);
 
         // --- SHADOW RECEIVER FLOOR ---
+        // Must sit just under the bucket base (group y -0.3 + scaled local base -0.76),
+        // otherwise the shadow lands far below the object and reads as a detached blob.
         const floorGeom = new THREE.PlaneGeometry(12, 12);
         floorGeom.rotateX(-Math.PI / 2);
-        const floorMat = new THREE.ShadowMaterial({ opacity: 0.38 });
+        const floorMat = new THREE.ShadowMaterial({ opacity: 0.2 });
         const floor = new THREE.Mesh(floorGeom, floorMat);
-        floor.position.y = -1.65;
+        floor.position.y = -1.09;
         floor.receiveShadow = true;
         scene.add(floor);
 
         // --- STEAM PARTICLE SYSTEM ---
-        const steamCount = 45;
+        const steamCount = LOW ? 20 : 45;
         const steamGeom = new THREE.BufferGeometry();
         const steamPositions = new Float32Array(steamCount * 3);
         const steamVels = [];
@@ -493,21 +611,52 @@
 
         // --- UPDATE & RENDER ---
         let lastTime = 0;
+        let disposed = false;
+        let paused = false;
+
+        function resize() {
+            if (disposed) return;
+            const rect = canvas.getBoundingClientRect();
+            const width = Math.max(1, Math.round(rect.width || canvas.clientWidth || window.innerWidth));
+            const height = Math.max(1, Math.round(rect.height || canvas.clientHeight || window.innerHeight));
+            renderer.setSize(width, height, false);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+        }
 
         return {
             update: function (pProgress, timeMs) {
+                if (disposed || paused) return;
                 const dt = lastTime ? (timeMs - lastTime) / 1000 : 0;
                 lastTime = timeMs;
 
-                // Make the 3D model float and rotate by itself
+                // Make the 3D model float and sway by itself
                 const bob = Math.sin(timeMs * 0.001) * 0.05;
-                const autoRotY = timeMs * 0.0005; // Smooth continuous spin rotation
+                // A gentle sway rather than a full spin: the bucket is rotated to face
+                // its logo at the camera, and a continuous revolution hid the brand for
+                // most of every cycle.
+                const autoRotY = Math.sin(timeMs * 0.00035) * 0.42;
                 const autoRotX = -0.08 + Math.sin(timeMs * 0.0004) * 0.04; // Gentle rocking pitch
 
-                const isMobile = window.innerWidth < 768;
+                // Phone framing is not a smaller version of the desktop framing: the
+                // desktop canvas is the whole viewport, while on a phone the canvas is
+                // confined to the hero band between the wordmark and the CTA. The
+                // camera's 38deg vertical fov at z=5.5 shows a fixed 3.79 world units
+                // of height whatever that band's pixel height is, so one pair of
+                // constants frames every phone size identically.
+                //   The pile measures ~2.0 world units tall at scale 1, so filling ~80%
+                // of the band needs scale = 0.8 * 3.79 / 2.0 ~ 1.48. At that scale the
+                // painted centre lands 0.073 above the group origin (the bucket hangs
+                // below the origin, the chicken piles above it), so y = -1.48 * 0.073
+                // puts it on the band's centre line. Both figures are measured off a
+                // render, not derived from the geometry -- perspective makes the near
+                // faces project larger than their model extents.
+                // The old 0.72 / -0.42 was authored against a full-height phone canvas
+                // and left the bucket at 38% of the band with a 112px void above it.
+                const isPhone = LOW;
                 const targetX = 0;
-                const targetY = isMobile ? -0.42 : -0.3;
-                const targetScale = isMobile ? 0.72 : 1.05; // Large popping scale
+                const targetY = isPhone ? -0.108 : -0.3;
+                const targetScale = isPhone ? 1.48 : 1.05; // Large popping scale
 
                 // Interpolate chicken positions
                 chickenGroup.position.x += (targetX - chickenGroup.position.x) * 0.09;
@@ -523,7 +672,7 @@
 
                 // Adjust keylight/hotspot targets
                 keyLight.position.x = -3.5 + chickenGroup.position.x;
-                specLight.position.x = -1.0 + chickenGroup.position.x;
+                if (specLight) specLight.position.x = -1.0 + chickenGroup.position.x;
 
                 // Update Steam particles (only if visible)
                 if (pProgress < 0.85) {
@@ -533,7 +682,7 @@
                         if (steamLifes[i] > 1.0) {
                             steamLifes[i] = 0;
                             steamPositionsArray[i * 3] = chickenGroup.position.x + (Math.random() - 0.5) * 1.2 * scaleVal;
-                            steamPositionsArray[i * 3 + 1] = chickenGroup.position.y + 0.45 + (Math.random() - 0.5) * 0.3 * scaleVal;
+                            steamPositionsArray[i * 3 + 1] = chickenGroup.position.y + 0.45 * scaleVal + (Math.random() - 0.5) * 0.3 * scaleVal;
                             steamPositionsArray[i * 3 + 2] = chickenGroup.position.z + (Math.random() - 0.5) * 1.2 * scaleVal;
                             steamVels[i].y = 0.35 + Math.random() * 0.45;
                             steamVels[i].x = (Math.random() - 0.5) * 0.12;
@@ -552,16 +701,36 @@
                 steamMat.opacity = steamGlobalOpacity * 0.12;
 
                 // Resize verification
-                const width = canvas.clientWidth;
-                const height = canvas.clientHeight;
-                if (canvas.width !== width || canvas.height !== height) {
-                    renderer.setSize(width, height, false);
-                    camera.aspect = width / height;
-                    camera.updateProjectionMatrix();
-                }
+                const rect = canvas.getBoundingClientRect();
+                const width = Math.max(1, Math.round(rect.width || canvas.clientWidth || window.innerWidth));
+                const height = Math.max(1, Math.round(rect.height || canvas.clientHeight || window.innerHeight));
+                if (camera.aspect !== width / height) resize();
 
                 // Render Scene
                 renderer.render(scene, camera);
+            },
+            resize: resize,
+            pause: function () {
+                paused = true;
+            },
+            resume: function () {
+                paused = false;
+                lastTime = 0;
+            },
+            destroy: function () {
+                if (disposed) return;
+                disposed = true;
+                renderer.dispose();
+                scene.traverse(function (object) {
+                    if (object.geometry) object.geometry.dispose();
+                    if (object.material) {
+                        const materials = Array.isArray(object.material) ? object.material : [object.material];
+                        materials.forEach(function (material) {
+                            if (material.map) material.map.dispose();
+                            material.dispose();
+                        });
+                    }
+                });
             }
         };
     };
